@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 from enum import Enum
 from .models import EquipmentEvent
-
+from .evidence import DiagnosticEvidence
 
 class DiagnosticStatus(str, Enum):
     NORMAL = "normal"
@@ -19,7 +19,7 @@ class DiagnosticResult:
     title: str | None = None
     description: str | None = None
     confidence: float = 0.0
-    evidence: list[str] = field(default_factory=list)
+    evidence: list[DiagnosticEvidence] = field(default_factory=list)
     recommended_actions: list[str] = field(default_factory=list)
 
 
@@ -60,7 +60,13 @@ def diagnose(events: list[EquipmentEvent]) -> DiagnosticResult:
                 ),
                 confidence=0.95,
                 evidence=[
-                    f"Vacuum pressure measured at {event.value} {event.unit}"
+                    DiagnosticEvidence(
+                        event_code=event.event_code,
+                        description=f"Vacuum pressure measured at {event.value} {event.unit}",
+                        value=event.value,
+                        unit=event.unit,
+                        severity=event.severity,
+                    )           
                 ],
                 recommended_actions=[
                     "Check the vacuum system for possible leakage.",

@@ -1,7 +1,8 @@
 from datetime import datetime
 
 from sedp import evidence
-from sedp.diagnostics import diagnose, DiagnosticStatus
+from sedp.diagnostics import diagnose
+from sedp.diagnostic_models import DiagnosticStatus
 from sedp.models import EquipmentEvent
 
 

@@ -2,6 +2,9 @@ from dataclasses import dataclass, field
 from enum import Enum
 from .models import EquipmentEvent
 from .evidence import DiagnosticEvidence
+from .diagnostic_models import DiagnosticResult, DiagnosticStatus
+from .models import EquipmentEvent
+from .rules import VacuumPressureRule
 
 class DiagnosticStatus(str, Enum):
     NORMAL = "normal"

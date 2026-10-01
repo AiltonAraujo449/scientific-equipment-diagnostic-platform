@@ -86,3 +86,56 @@ def test_diagnose_cooling_fault_sequence_from_json():
     assert result.evidence[0].event_code == "COOLING_TEMP_HIGH"
 
     assert len(result.recommended_actions) > 0
+
+def test_diagnose_without_fault_returns_normal():
+
+    events = [
+        EquipmentEvent(
+            timestamp=datetime(2026, 9, 26, 14, 0, 0),
+            equipment_id="SEDP-SEM-001",
+            subsystem="cooling",
+            component="temperature_sensor",
+            event_code="COOLING_TEMP_HIGH",
+            severity="INFO",
+            value=25.0,
+            unit="°C",
+        )
+    ]
+
+    result = diagnose(events)
+
+    assert result.status == DiagnosticStatus.NORMAL
+    assert result.equipment == "SEDP-SEM-001"
+    assert result.fault_code is None
+    assert result.confidence == 0.90
+
+
+def test_diagnose_sequence_collects_multiple_faults():
+
+    events = [
+        EquipmentEvent(
+            timestamp=datetime(2026, 9, 26, 10, 0, 0),
+            equipment_id="SEDP-SEM-001",
+            subsystem="Vacuum",
+            component="Chamber",
+            event_code="VAC_PRESSURE",
+            severity="warning",
+            value=8.5e-3,
+            unit="mbar",
+        ),
+        EquipmentEvent(
+            timestamp=datetime(2026, 9, 26, 10, 1, 0),
+            equipment_id="SEDP-SEM-001",
+            subsystem="cooling",
+            component="temperature_sensor",
+            event_code="COOLING_TEMP_HIGH",
+            severity="ERROR",
+            value=32.5,
+            unit="°C",
+        ),
+    ]
+
+    result = diagnose(events)
+
+    assert result.status == DiagnosticStatus.FAULT
+    assert result.equipment == "SEDP-SEM-001"

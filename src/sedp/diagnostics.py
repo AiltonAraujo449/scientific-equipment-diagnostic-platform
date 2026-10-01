@@ -26,6 +26,8 @@ class DiagnosticEngine:
                 description="No equipment events were provided.",
             )
 
+        diagnoses: list[DiagnosticResult] = []
+
         for event in events:
             for rule in self.rules:
                 if not rule.applies(event):
@@ -34,7 +36,10 @@ class DiagnosticEngine:
                 result = rule.evaluate(event)
 
                 if result is not None:
-                    return result
+                    diagnoses.append(result)
+
+        if diagnoses:
+            return self._select_diagnosis(diagnoses)
 
         equipment = events[0].equipment_id
 
@@ -45,6 +50,17 @@ class DiagnosticEngine:
             title="No fault detected",
             description="No diagnostic rule detected an abnormal condition.",
             confidence=0.90,
+        )
+
+    def _select_diagnosis(
+        self,
+        diagnoses: list[DiagnosticResult],
+    ) -> DiagnosticResult:
+        """Select the most relevant diagnosis from detected faults."""
+
+        return max(
+            diagnoses,
+            key=lambda diagnosis: diagnosis.confidence,
         )
 
 

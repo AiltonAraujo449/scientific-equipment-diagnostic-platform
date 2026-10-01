@@ -2,19 +2,33 @@ from .models import EquipmentEvent
 from .diagnostic_models import DiagnosticResult, DiagnosticStatus
 from .rules import (
     DiagnosticRule,
+    DiagnosticSequenceRule,
     VacuumPressureRule,
     CoolingTemperatureRule,
+    CoolingFaultSequenceRule,
 )
 
 
 class DiagnosticEngine:
     """Engine responsible for evaluating equipment events."""
 
-    def __init__(self, rules: list[DiagnosticRule] | None = None):
+    def __init__(
+        self,
+        rules: list[DiagnosticRule] | None = None,
+        sequence_rules: list[DiagnosticSequenceRule] | None = None,
+    ):
         self.rules = rules if rules is not None else [
             VacuumPressureRule(),
             CoolingTemperatureRule(),
         ]
+
+        self.sequence_rules = (
+            sequence_rules
+            if sequence_rules is not None
+            else [
+                CoolingFaultSequenceRule(),
+            ]
+        )
 
     def diagnose(self, events: list[EquipmentEvent]) -> DiagnosticResult:
         if not events:
@@ -27,6 +41,20 @@ class DiagnosticEngine:
             )
 
         diagnoses: list[DiagnosticResult] = []
+
+        sequence_diagnoses: list[DiagnosticResult] = []
+
+        for rule in self.sequence_rules:
+            if not rule.applies(events):
+                continue
+
+            result = rule.evaluate(events)
+
+            if result is not None:
+                sequence_diagnoses.append(result)
+
+        if sequence_diagnoses:
+            diagnoses.extend(sequence_diagnoses)
 
         for event in events:
             for rule in self.rules:
@@ -53,15 +81,18 @@ class DiagnosticEngine:
         )
 
     def _select_diagnosis(
-        self,
-        diagnoses: list[DiagnosticResult],
-    ) -> DiagnosticResult:
+    self,
+    diagnoses: list[DiagnosticResult],
+) -> DiagnosticResult:
         """Select the most relevant diagnosis from detected faults."""
 
         return max(
             diagnoses,
-            key=lambda diagnosis: diagnosis.confidence,
-        )
+            key=lambda diagnosis: (
+                diagnosis.priority,
+                diagnosis.confidence,
+        ),
+    )
 
 
 def diagnose(events: list[EquipmentEvent]) -> DiagnosticResult:

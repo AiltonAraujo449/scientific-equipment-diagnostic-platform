@@ -20,5 +20,6 @@ class DiagnosticResult:
     title: str | None = None
     description: str | None = None
     confidence: float = 0.0
+    priority: int = 0    
     evidence: list[DiagnosticEvidence] = field(default_factory=list)
     recommended_actions: list[str] = field(default_factory=list)

@@ -1,88 +1,55 @@
-from dataclasses import dataclass, field
-from enum import Enum
 from .models import EquipmentEvent
-from .evidence import DiagnosticEvidence
 from .diagnostic_models import DiagnosticResult, DiagnosticStatus
-from .models import EquipmentEvent
-from .rules import VacuumPressureRule
-
-class DiagnosticStatus(str, Enum):
-    NORMAL = "normal"
-    WARNING = "warning"
-    FAULT = "fault"
-    UNKNOWN = "unknown"
+from .rules import (
+    DiagnosticRule,
+    VacuumPressureRule,
+    CoolingTemperatureRule,
+)
 
 
-@dataclass
-class DiagnosticResult:
-    status: DiagnosticStatus
-    equipment: str
-    subsystem: str
-    fault_code: str | None = None
-    title: str | None = None
-    description: str | None = None
-    confidence: float = 0.0
-    evidence: list[DiagnosticEvidence] = field(default_factory=list)
-    recommended_actions: list[str] = field(default_factory=list)
+class DiagnosticEngine:
+    """Engine responsible for evaluating equipment events."""
 
+    def __init__(self, rules: list[DiagnosticRule] | None = None):
+        self.rules = rules if rules is not None else [
+            VacuumPressureRule(),
+            CoolingTemperatureRule(),
+        ]
 
-    
-def diagnose(events: list[EquipmentEvent]) -> DiagnosticResult:
-    vacuum_events = [
-        event
-        for event in events
-        if event.subsystem.lower() == "vacuum"
-    ]
-
-    if not vacuum_events:
-        return DiagnosticResult(
-            status=DiagnosticStatus.UNKNOWN,
-            equipment="unknown",
-            subsystem="vacuum",
-            title="Insufficient data",
-            description="No vacuum events were found.",
-        )
-
-    equipment = vacuum_events[0].equipment_id
-
-    for event in vacuum_events:
-        if (
-            event.value is not None
-            and event.unit == "mbar"
-            and event.value > 1e-3
-        ):
+    def diagnose(self, events: list[EquipmentEvent]) -> DiagnosticResult:
+        if not events:
             return DiagnosticResult(
-                status=DiagnosticStatus.FAULT,
-                equipment=equipment,
-                subsystem="vacuum",
-                fault_code="VAC-001",
-                title="Vacuum pressure above expected level",
-                description=(
-                    "The vacuum pressure is above the expected "
-                    "operating range."
-                ),
-                confidence=0.95,
-                evidence=[
-                    DiagnosticEvidence(
-                        event_code=event.event_code,
-                        description=f"Vacuum pressure measured at {event.value} {event.unit}",
-                        value=event.value,
-                        unit=event.unit,
-                        severity=event.severity,
-                    )           
-                ],
-                recommended_actions=[
-                    "Check the vacuum system for possible leakage.",
-                    "Verify pump operation.",
-                    "Inspect relevant vacuum components.",
-                ],
+                status=DiagnosticStatus.UNKNOWN,
+                equipment="unknown",
+                subsystem="unknown",
+                title="Insufficient data",
+                description="No equipment events were provided.",
             )
 
-    return DiagnosticResult(
-        status=DiagnosticStatus.NORMAL,
-        equipment=equipment,
-        subsystem="vacuum",
-        title="Vacuum system operating normally",
-        description="No abnormal vacuum condition was detected.",
-        confidence=0.90,
-    )
+        for event in events:
+            for rule in self.rules:
+                if not rule.applies(event):
+                    continue
+
+                result = rule.evaluate(event)
+
+                if result is not None:
+                    return result
+
+        equipment = events[0].equipment_id
+
+        return DiagnosticResult(
+            status=DiagnosticStatus.NORMAL,
+            equipment=equipment,
+            subsystem="unknown",
+            title="No fault detected",
+            description="No diagnostic rule detected an abnormal condition.",
+            confidence=0.90,
+        )
+
+
+def diagnose(events: list[EquipmentEvent]) -> DiagnosticResult:
+    """Diagnose a sequence of equipment events."""
+
+    engine = DiagnosticEngine()
+    return engine.diagnose(events)

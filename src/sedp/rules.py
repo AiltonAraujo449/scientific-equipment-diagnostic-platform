@@ -6,6 +6,7 @@ from .evidence import DiagnosticEvidence
 
 
 class DiagnosticRule(ABC):
+
     @abstractmethod
     def applies(self, event: EquipmentEvent) -> bool:
         """Return True when this rule can evaluate the event."""
@@ -64,5 +65,56 @@ class VacuumPressureRule(DiagnosticRule):
                 "Check the vacuum system for possible leakage.",
                 "Verify pump operation.",
                 "Inspect relevant vacuum components.",
+            ],
+        )
+
+
+class CoolingTemperatureRule(DiagnosticRule):
+
+    FAULT_CODE = "COOL-001"
+    TEMPERATURE_LIMIT = 30.0
+
+    def applies(self, event: EquipmentEvent) -> bool:
+        return (
+            event.subsystem.lower() == "cooling"
+            and event.event_code == "COOLING_TEMP_HIGH"
+            and event.value is not None
+        )
+
+    def evaluate(self, event: EquipmentEvent) -> DiagnosticResult | None:
+        if not self.applies(event):
+            return None
+
+        if event.value <= self.TEMPERATURE_LIMIT:
+            return None
+
+        evidence = DiagnosticEvidence(
+            event_code=event.event_code,
+            description=(
+                f"Cooling temperature measured at "
+                f"{event.value} {event.unit}"
+            ),
+            value=event.value,
+            unit=event.unit,
+            severity=event.severity,
+        )
+
+        return DiagnosticResult(
+            status=DiagnosticStatus.FAULT,
+            equipment=event.equipment_id,
+            subsystem="cooling",
+            fault_code=self.FAULT_CODE,
+            title="Cooling temperature above expected level",
+            description=(
+                "The cooling temperature is above the expected "
+                "operating range."
+            ),
+            confidence=0.95,
+            evidence=[evidence],
+            recommended_actions=[
+                "Check the cooling system.",
+                "Verify cooling pump operation.",
+                "Inspect coolant flow.",
+                "Check the cooling temperature sensor.",
             ],
         )

@@ -1,10 +1,14 @@
 from dataclasses import dataclass, field
 from enum import Enum
 
-from .evidence import DiagnosticEvidence
+from .evidence import (
+    DiagnosticEvidence,
+    DiagnosticSequenceEvidence,
+)
 
 
 class DiagnosticStatus(str, Enum):
+
     NORMAL = "normal"
     WARNING = "warning"
     FAULT = "fault"
@@ -13,6 +17,7 @@ class DiagnosticStatus(str, Enum):
 
 @dataclass
 class DiagnosticResult:
+
     status: DiagnosticStatus
     equipment: str
     subsystem: str
@@ -20,6 +25,14 @@ class DiagnosticResult:
     title: str | None = None
     description: str | None = None
     confidence: float = 0.0
-    priority: int = 0    
-    evidence: list[DiagnosticEvidence] = field(default_factory=list)
-    recommended_actions: list[str] = field(default_factory=list)
+    priority: int = 0
+
+    evidence: list[DiagnosticEvidence] = field(
+        default_factory=list
+    )
+
+    sequence_evidence: DiagnosticSequenceEvidence | None = None
+
+    recommended_actions: list[str] = field(
+        default_factory=list
+    )

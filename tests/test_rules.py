@@ -97,3 +97,80 @@ def test_cooling_fault_sequence_rule_assigns_higher_priority():
     assert result.fault_code == "COOL-002"
     assert result.priority == 10
     assert result.confidence == 0.98
+
+def test_cooling_fault_sequence_requires_temporal_order():
+    events = [
+        EquipmentEvent(
+            timestamp=datetime(2026, 9, 26, 10, 0, 0),
+            equipment_id="SEDP-SEM-001",
+            subsystem="cooling",
+            component="cooling_pump",
+            event_code="COOLING_PUMP_ON",
+            severity="INFO",
+            value=1,
+        ),
+        EquipmentEvent(
+            timestamp=datetime(2026, 9, 26, 10, 0, 10),
+            equipment_id="SEDP-SEM-001",
+            subsystem="cooling",
+            component="temperature_sensor",
+            event_code="COOLING_TEMP_HIGH",
+            severity="ERROR",
+            value=32.5,
+            unit="°C",
+        ),
+        EquipmentEvent(
+            timestamp=datetime(2026, 9, 26, 10, 0, 15),
+            equipment_id="SEDP-SEM-001",
+            subsystem="cooling",
+            component="flow_sensor",
+            event_code="COOLING_FLOW_LOW",
+            severity="WARNING",
+            value=0.82,
+            unit="L/min",
+        ),
+    ]
+
+    rule = CoolingFaultSequenceRule()
+
+    assert rule.applies(events) is False
+    assert rule.evaluate(events) is None
+
+
+def test_cooling_fault_sequence_requires_maximum_interval():
+    events = [
+        EquipmentEvent(
+            timestamp=datetime(2026, 9, 26, 10, 0, 0),
+            equipment_id="SEDP-SEM-001",
+            subsystem="cooling",
+            component="cooling_pump",
+            event_code="COOLING_PUMP_ON",
+            severity="INFO",
+            value=1,
+        ),
+        EquipmentEvent(
+            timestamp=datetime(2026, 9, 26, 10, 1, 1),
+            equipment_id="SEDP-SEM-001",
+            subsystem="cooling",
+            component="flow_sensor",
+            event_code="COOLING_FLOW_LOW",
+            severity="WARNING",
+            value=0.82,
+            unit="L/min",
+        ),
+        EquipmentEvent(
+            timestamp=datetime(2026, 9, 26, 10, 1, 10),
+            equipment_id="SEDP-SEM-001",
+            subsystem="cooling",
+            component="temperature_sensor",
+            event_code="COOLING_TEMP_HIGH",
+            severity="ERROR",
+            value=32.5,
+            unit="°C",
+        ),
+    ]
+
+    rule = CoolingFaultSequenceRule()
+
+    assert rule.applies(events) is False
+    assert rule.evaluate(events) is None

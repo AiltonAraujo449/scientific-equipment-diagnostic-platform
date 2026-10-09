@@ -1,11 +1,13 @@
 from datetime import datetime
 from pathlib import Path
+from unittest import result
 
 from sedp import evidence
 from sedp.diagnostics import diagnose, DiagnosticEngine
 from sedp.diagnostic_models import DiagnosticResult, DiagnosticStatus
 from sedp.models import EquipmentEvent
 from sedp.ingestion import load_events_from_json
+from sedp.explanation import explain_diagnosis
 
 def test_detect_high_vacuum_pressure():
 
@@ -85,9 +87,35 @@ def test_diagnose_cooling_fault_sequence_from_json():
     assert len(result.evidence) == 3
 
     assert result.evidence[0].event_code == "COOLING_PUMP_ON"
-    assert result.evidence[1].event_code == "COOLING_FLOW_LOW"
-    assert result.evidence[2].event_code == "COOLING_TEMP_HIGH"
+    assert result.evidence[0].elapsed_seconds is None
 
+    assert result.evidence[1].event_code == "COOLING_FLOW_LOW"
+    assert result.evidence[1].elapsed_seconds == 15.0
+
+    assert result.evidence[2].event_code == "COOLING_TEMP_HIGH"
+    assert result.evidence[2].elapsed_seconds == 15.0
+
+    assert (
+    result.evidence[0].timestamp
+    < result.evidence[1].timestamp
+    < result.evidence[2].timestamp
+)
+    assert result.sequence_evidence is not None
+    assert result.sequence_evidence.total_duration_seconds == 30.0
+    assert len(result.sequence_evidence.events) == 3
+
+    assert (
+    result.sequence_evidence.events[0].event_code
+    == "COOLING_PUMP_ON"
+)
+    assert (
+    result.sequence_evidence.events[1].event_code
+    == "COOLING_FLOW_LOW"
+)
+    assert (
+    result.sequence_evidence.events[2].event_code
+    == "COOLING_TEMP_HIGH"
+)
     assert len(result.recommended_actions) > 0
 
 def test_diagnose_without_fault_returns_normal():
@@ -225,3 +253,24 @@ def test_diagnostic_engine_uses_confidence_only_as_tiebreaker():
     assert result.fault_code == "VAC-001"
     assert result.priority == 10
     assert result.confidence == 0.95
+
+def test_explain_cooling_fault_sequence():
+    events = load_events_from_json(
+        Path("examples/cooling-fault-sequence.json")
+    )
+
+    engine = DiagnosticEngine()
+
+    result = engine.diagnose(events)
+
+    explanation = explain_diagnosis(result)
+
+    assert "Cooling system degradation detected" in explanation
+
+    assert "15 seconds later" in explanation
+
+    assert "Cooling pump activated." in explanation
+
+    assert "cooling flow became low after pump activation." in explanation
+
+    assert "cooling temperature became high after low cooling flow." in explanation

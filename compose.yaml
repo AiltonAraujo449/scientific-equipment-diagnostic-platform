@@ -1,0 +1,23 @@
+
+services:
+  db:
+    image: postgres:17
+    container_name: sedp-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: sedp
+      POSTGRES_USER: sedp_user
+      POSTGRES_PASSWORD: ${SEDP_DB_PASSWORD:?Defina SEDP_DB_PASSWORD no arquivo .env}
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - sedp_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sedp_user -d sedp"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  sedp_postgres_data:
+

@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: sedp
+          POSTGRES_USER: sedp_user
+          POSTGRES_PASSWORD: ${{ secrets.SEDP_DB_PASSWORD }}
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U sedp_user -d sedp"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      SEDP_DB_ENABLED: "true"
+      SEDP_DB_HOST: localhost
+      SEDP_DB_PORT: "5432"
+      SEDP_DB_NAME: sedp
+      SEDP_DB_USER: sedp_user
+      SEDP_DB_PASSWORD: ${{ secrets.SEDP_DB_PASSWORD }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Install project
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]"
+
+      - name: Unit and functional tests
+        run: pytest -q
+
+      - name: Integration tests (PostgreSQL)
+        env:
+          SEDP_RUN_DB_TESTS: "1"
+        run: pytest -q

@@ -122,6 +122,22 @@ finally {
 
 Os testes de integração exigem um PostgreSQL acessível e as variáveis de ambiente corretas.
 
+## Fluxo integrado de diagnóstico
+
+O SEDP conecta a análise de eventos de equipamentos à geração de relatórios técnicos e à persistência do histórico de diagnósticos.
+
+O fluxo de processamento é:
+
+1. **Ingestão:** recebe eventos do equipamento, incluindo timestamps, subsistemas, componentes, códigos de evento e valores medidos.
+2. **Diagnóstico:** aplica regras e analisa sequências temporais para identificar possíveis falhas.
+3. **Geração do relatório:** consolida o resultado, a prioridade, a confiança, as evidências e as ações recomendadas.
+4. **Persistência:** armazena o relatório no PostgreSQL quando a persistência está habilitada.
+5. **Consulta do histórico:** permite recuperar relatórios por identificador e consultar registros com filtros e paginação.
+
+A sequência de falha de refrigeração em `examples/cooling-fault-sequence.json` demonstra como eventos relacionados à bomba, à redução do fluxo de líquido refrigerante e ao aumento da temperatura podem ser correlacionados para produzir um diagnóstico explicável.
+
+A integração é validada por testes automatizados da API e do repositório, incluindo persistência, recuperação, filtragem e paginação dos relatórios.
+
 ## Exemplo de diagnóstico
 
 O arquivo `examples/cooling-fault-sequence.json` contém uma sequência de eventos de refrigeração utilizada para testar a identificação de degradação do sistema.
@@ -130,7 +146,24 @@ A sequência demonstra como eventos relacionados ao funcionamento da bomba, à r
 
 ## Estado do projeto
 
-A integração com PostgreSQL foi validada com **46 testes aprovados**, executados com os testes de integração habilitados e o banco real acessível. A evolução do projeto inclui ampliar a cobertura de falhas, aprimorar a observabilidade e avaliar estratégias de manutenção preditiva.
+O SEDP possui uma suíte automatizada de testes unitários, funcionais e de integração.
+
+**Última validação:** 49 testes aprovados com os testes de integração habilitados e o PostgreSQL real acessível.
+
+A validação contempla:
+
+- Regras de diagnóstico e análise de sequências temporais de falhas.
+- Geração e serialização de relatórios técnicos.
+- Endpoints da API e tratamento de erros.
+- Persistência e recuperação de relatórios no PostgreSQL.
+- Consulta do histórico com filtros e paginação.
+- Verificação de prontidão do serviço.
+
+A execução padrão, sem habilitar os testes de integração com banco de dados, apresentou 39 testes aprovados e 10 ignorados. Com `SEDP_RUN_DB_TESTS=1`, os 49 testes foram aprovados.
+
+A suíte apresentou um aviso de depreciação relacionado à integração entre Starlette e HTTPX, que permanece como pendência técnica para avaliação.
+
+Próximos objetivos: aprimorar a observabilidade, ampliar a cobertura de cenários de falha e avaliar estratégias de manutenção preditiva.
 
 ## Segurança
 

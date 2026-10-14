@@ -13,6 +13,9 @@ O projeto é um portfólio de engenharia de software voltado para diagnóstico a
 - Persistência de relatórios em PostgreSQL.
 - Consulta do histórico por equipamento e código de falha.
 - Testes unitários e de integração.
+- Verificação de disponibilidade e prontidão da API.
+- Métricas operacionais no formato Prometheus.
+- Logs estruturados em JSON com identificadores de correlação.
 
 ## Tecnologias
 
@@ -22,6 +25,7 @@ O projeto é um portfólio de engenharia de software voltado para diagnóstico a
 - Psycopg
 - Docker Compose
 - Pytest
+- Prometheus Client
 
 ## Pré-requisitos
 
@@ -91,14 +95,18 @@ Esse comando cria a tabela de histórico caso ela ainda não exista.
 uvicorn sedp.api:app --reload
 ```
 
-Endpoints úteis:
+Endpoints disponíveis:
 
-- `GET /health` — verifica a API.
-- `POST /diagnostics` — executa um diagnóstico.
-- `GET /diagnostics/history` — consulta o histórico.
+- `GET /health` — verifica se a API está respondendo.
+- `GET /ready` — verifica a prontidão do serviço e a conexão com PostgreSQL, quando habilitado.
+- `POST /diagnostics` — processa eventos e gera um relatório diagnóstico.
+- `GET /diagnostics/history` — consulta relatórios com filtros e paginação.
+- `GET /diagnostics/history/{report_id}` — recupera um relatório pelo identificador.
+- `GET /metrics/` — expõe métricas operacionais no formato Prometheus.
 - `GET /docs` — documentação interativa da API.
 
 Com a API em execução, acesse `http://127.0.0.1:8000/docs`.
+
 
 ## Executar os testes
 
@@ -138,32 +146,114 @@ A sequência de falha de refrigeração em `examples/cooling-fault-sequence.json
 
 A integração é validada por testes automatizados da API e do repositório, incluindo persistência, recuperação, filtragem e paginação dos relatórios.
 
+
+## Observabilidade
+
+O SEDP possui instrumentação de observabilidade integrada à API FastAPI.
+
+A implementação utiliza a biblioteca `prometheus-client` para expor métricas operacionais e o módulo `logging` do Python para produzir logs estruturados em JSON.
+
+### Métricas Prometheus
+
+As métricas estão disponíveis em:
+
+`GET http://127.0.0.1:8000/metrics/`
+
+Métricas implementadas:
+
+| Métrica | Descrição |
+|---|---|
+| `sedp_diagnostics_total` | Quantidade de diagnósticos concluídos, com rótulos de resultado e severidade. |
+| `sedp_diagnostic_duration_seconds` | Distribuição do tempo de processamento dos diagnósticos. |
+| `sedp_events_ingested_total` | Quantidade de eventos processados com sucesso. |
+| `sedp_api_request_duration_seconds` | Distribuição da latência das requisições HTTP. |
+
+Os contadores de diagnósticos e eventos são atualizados após o processamento bem-sucedido e, quando habilitada, a persistência do relatório.
+
+O histograma de duração registra o tempo de execução do endpoint de diagnóstico, incluindo tentativas que terminam em erro.
+
+### Logs estruturados
+
+O SEDP utiliza logs JSON com informações como:
+
+- Timestamp em UTC.
+- Nível do log.
+- Nome do logger.
+- Identificador de correlação (`request_id`).
+- Mensagem da operação.
+
+A API aceita o cabeçalho `X-Request-ID` para correlação de requisições. Quando ele não é informado, a aplicação gera um identificador.
+
+### Consultar as métricas
+
+Com a API em execução, utilize o PowerShell:
+
+```powershell
+$response = Invoke-WebRequest `
+    -Uri "http://127.0.0.1:8000/metrics/" `
+    -UseBasicParsing
+
+$response.StatusCode
+```
+
+Para consultar as métricas específicas do SEDP:
+
+```powershell
+$response.Content -split "`n" |
+    Where-Object {
+        $_ -match '^sedp_'
+    }
+```
+
+### Estado da integração
+
+A instrumentação Prometheus e a exposição de métricas pela API estão implementadas e validadas.
+
+A instalação do servidor Prometheus, a coleta periódica das métricas e a integração com Grafana estão planejadas para uma próxima etapa.
+
+
 ## Exemplo de diagnóstico
 
 O arquivo `examples/cooling-fault-sequence.json` contém uma sequência de eventos de refrigeração utilizada para testar a identificação de degradação do sistema.
 
 A sequência demonstra como eventos relacionados ao funcionamento da bomba, à redução do fluxo de líquido refrigerante e ao aumento da temperatura podem contribuir para um diagnóstico.
 
+
 ## Estado do projeto
 
-O SEDP possui uma suíte automatizada de testes unitários, funcionais e de integração.
+O SEDP possui uma suíte automatizada de testes unitários, funcionais e de integração, incluindo testes de observabilidade.
 
-**Última validação:** 49 testes aprovados com os testes de integração habilitados e o PostgreSQL real acessível.
+**Última validação: 51 testes aprovados com PostgreSQL real e integração habilitada.**
 
 A validação contempla:
 
-- Regras de diagnóstico e análise de sequências temporais de falhas.
+- Regras de diagnóstico e análise de sequências temporais.
+- Priorização de falhas e geração de evidências.
 - Geração e serialização de relatórios técnicos.
 - Endpoints da API e tratamento de erros.
 - Persistência e recuperação de relatórios no PostgreSQL.
 - Consulta do histórico com filtros e paginação.
 - Verificação de prontidão do serviço.
+- Atualização dos contadores Prometheus.
+- Exposição das métricas pelo endpoint `/metrics/`.
 
-A execução padrão, sem habilitar os testes de integração com banco de dados, apresentou 39 testes aprovados e 10 ignorados. Com `SEDP_RUN_DB_TESTS=1`, os 49 testes foram aprovados.
+Resultados da última execução:
 
-A suíte apresentou um aviso de depreciação relacionado à integração entre Starlette e HTTPX, que permanece como pendência técnica para avaliação.
+| Execução | Resultado |
+|---|---|
+| Testes específicos de observabilidade | 2 aprovados |
+| Suíte padrão | 41 aprovados, 10 ignorados |
+| Suíte com PostgreSQL habilitado | 51 aprovados |
 
-Próximos objetivos: aprimorar a observabilidade, ampliar a cobertura de cenários de falha e avaliar estratégias de manutenção preditiva.
+A suíte apresentou um aviso de depreciação relacionado à integração entre Starlette e HTTPX, sem falhas nos testes. A atualização dessa dependência permanece como pendência técnica.
+
+### Próximos objetivos
+
+1. Integrar Prometheus e Grafana utilizando Docker Compose.
+2. Criar dashboards de diagnóstico e desempenho da API.
+3. Ampliar a cobertura de cenários de falha de equipamentos científicos.
+4. Evoluir a análise histórica para identificar tendências e padrões de falha.
+5. Avaliar estratégias de manutenção preditiva.
 
 ## Segurança
 

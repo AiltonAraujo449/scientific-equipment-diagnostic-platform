@@ -26,6 +26,8 @@ O projeto é um portfólio de engenharia de software voltado para diagnóstico a
 - Docker Compose
 - Pytest
 - Prometheus Client
+- Prometheus Server
+- Grafana
 
 ## Pré-requisitos
 
@@ -45,6 +47,8 @@ O projeto é um portfólio de engenharia de software voltado para diagnóstico a
    - `SEDP_DB_USER=sedp_user`
 
 3. Confirme que `.env` permanece ignorado pelo Git.
+4. Configure `SEDP_GRAFANA_ADMIN_PASSWORD` no arquivo `.env`,
+   utilizando uma senha forte para o administrador do Grafana.
 
 Não versione o arquivo `.env` nem credenciais reais.
 
@@ -207,10 +211,103 @@ $response.Content -split "`n" |
 
 ### Estado da integração
 
-A instrumentação Prometheus e a exposição de métricas pela API estão implementadas e validadas.
+### Infraestrutura de monitoramento
 
-A instalação do servidor Prometheus, a coleta periódica das métricas e a integração com Grafana estão planejadas para uma próxima etapa.
+O SEDP utiliza Prometheus e Grafana para coletar, armazenar e visualizar métricas operacionais da API.
 
+A infraestrutura é gerenciada pelo Docker Compose e inclui:
+
+- **PostgreSQL:** persistência do histórico de diagnósticos.
+- **Prometheus:** coleta periódica das métricas da API.
+- **Grafana:** visualização dos indicadores e dashboards de monitoramento.
+
+#### Iniciar os serviços
+
+Com o Docker Desktop em execução e as variáveis `SEDP_DB_PASSWORD` e `SEDP_GRAFANA_ADMIN_PASSWORD` configuradas no arquivo `.env`, execute:
+
+```powershell
+docker compose config --quiet
+docker compose up -d
+docker compose ps
+```
+
+A API FastAPI é executada separadamente no ambiente Python do Windows:
+
+```powershell
+python -m uvicorn sedp.api:app --reload
+```
+
+O Prometheus utiliza `host.docker.internal:8000` para acessar a API executada no host Windows. Se necessário, ajuste a configuração de rede do servidor de desenvolvimento para permitir a comunicação com o contêiner, mantendo as restrições de firewall apropriadas.
+
+#### Endereços locais
+
+| Serviço | Endereço |
+|---|---|
+| FastAPI | `http://127.0.0.1:8000/docs` |
+| Métricas da API | `http://127.0.0.1:8000/metrics/` |
+| Prometheus | `http://127.0.0.1:9090` |
+| Grafana | `http://127.0.0.1:3000` |
+
+O Grafana utiliza o usuário administrador configurado no Docker Compose e a senha definida em `SEDP_GRAFANA_ADMIN_PASSWORD`.
+
+#### Dashboard SEDP
+
+O dashboard **SEDP - Scientific Equipment Monitoring** é carregado automaticamente pelo provisionamento do Grafana.
+
+Ele apresenta quatro indicadores:
+
+| Painel | Descrição |
+|---|---|
+| SEDP API Availability | Disponibilidade da API para coleta pelo Prometheus. |
+| Equipment Events Ingested | Quantidade de eventos processados. |
+| Diagnostics by Status | Quantidade de diagnósticos agrupados por resultado. |
+| Diagnostic Processing Time | Tempo médio de processamento dos diagnósticos contabilizados pela instância. |
+
+Os valores dos contadores Prometheus podem reiniciar quando o processo da API é reiniciado. Eles não representam necessariamente o total histórico armazenado no PostgreSQL.
+
+#### Arquivos de configuração
+
+```text
+monitoring/
+├── prometheus/
+│   └── prometheus.yml
+└── grafana/
+    ├── dashboards/
+    │   └── sedp-monitoring.json
+    └── provisioning/
+        ├── dashboards/
+        │   └── dashboards.yml
+        └── datasources/
+            └── prometheus.yml
+```
+
+O provisionamento automático permite carregar a fonte de dados Prometheus e o dashboard a partir dos arquivos versionados no repositório, sem necessidade de configuração manual em uma nova instalação.
+
+#### Validar a coleta
+
+No Prometheus ou no Grafana Explore, execute:
+
+```promql
+up{job="sedp-api"}
+```
+
+O valor `1` indica que o Prometheus está conseguindo coletar as métricas da API.
+
+Para consultar diagnósticos agrupados por resultado:
+
+```promql
+sum by (outcome) (sedp_diagnostics_total{job="sedp-api"})
+```
+
+Para calcular o tempo médio de processamento:
+
+```promql
+sedp_diagnostic_duration_seconds_sum{job="sedp-api"}
+/
+sedp_diagnostic_duration_seconds_count{job="sedp-api"}
+```
+
+A infraestrutura foi validada com os quatro painéis funcionando no Grafana.
 
 ## Exemplo de diagnóstico
 
@@ -249,8 +346,8 @@ A suíte apresentou um aviso de depreciação relacionado à integração entre 
 
 ### Próximos objetivos
 
-1. Integrar Prometheus e Grafana utilizando Docker Compose.
-2. Criar dashboards de diagnóstico e desempenho da API.
+1. Implementar alertas operacionais no Grafana para indisponibilidade da API e aumento de falhas.
+2. Ampliar os dashboards com gráficos históricos, taxas de falhas e percentis de latência.
 3. Ampliar a cobertura de cenários de falha de equipamentos científicos.
 4. Evoluir a análise histórica para identificar tendências e padrões de falha.
 5. Avaliar estratégias de manutenção preditiva.
